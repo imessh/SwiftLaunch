@@ -9,8 +9,9 @@ name: Build and Release
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main", "feat-1-ci_cd_adding" ]
+  pull_request:
+    branches: [ "main" ]
 
   # Allow manual trigger from the Actions tab (useful for re-running a release)
   workflow_dispatch:
