@@ -1,0 +1,177 @@
+# ══════════════════════════════════════════════════════════════════════════════
+#  SwiftLaunch — CI/CD Pipeline
+#  Trigger : push to main
+#  Runner  : windows-latest
+#  Result  : self-contained EXE → Inno Setup installer → GitHub Release
+# ══════════════════════════════════════════════════════════════════════════════
+
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+
+  # Allow manual trigger from the Actions tab (useful for re-running a release)
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    name: Build · Package · Release
+    runs-on: windows-latest
+
+    # Required so the job can create tags and GitHub Releases
+    permissions:
+      contents: write
+
+    steps:
+
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history needed for git tag operations
+
+      # ── 2. Setup .NET 8 SDK ────────────────────────────────────────────────
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # ── 3. Read version from .csproj ───────────────────────────────────────
+      #   Parses <Version>X.X.X</Version> and exposes it as:
+      #     ${{ steps.read_version.outputs.version }}     →  1.0.0
+      #     ${{ steps.read_version.outputs.tag }}         →  v1.0.0
+      - name: Read version from csproj
+        id: read_version
+        shell: pwsh
+        run: |
+          [xml]$csproj = Get-Content "SwiftLaunch.csproj"
+          $version = $csproj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if (-not $version) {
+            Write-Error "Could not read <Version> from SwiftLaunch.csproj"
+            exit 1
+          }
+          $tag = "v$version"
+          Write-Output "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Output "tag=$tag"         >> $env:GITHUB_OUTPUT
+          Write-Host "Detected version: $version  (tag: $tag)"
+
+      # ── 4. Guard: skip if this tag already exists ──────────────────────────
+      #   Prevents duplicate releases when a push doesn't bump the version.
+      - name: Check if tag already exists
+        id: tag_check
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.read_version.outputs.tag }}"
+          $exists = git tag --list $tag
+          if ($exists) {
+            Write-Host "Tag $tag already exists — skipping release."
+            Write-Output "skip=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "Tag $tag is new — proceeding with release."
+            Write-Output "skip=false" >> $env:GITHUB_OUTPUT
+          }
+
+      # ── 5. Restore NuGet packages ──────────────────────────────────────────
+      - name: Restore dependencies
+        if: steps.tag_check.outputs.skip == 'false'
+        run: dotnet restore SwiftLaunch.csproj
+
+      # ── 6. Build (Release) ─────────────────────────────────────────────────
+      - name: Build in Release mode
+        if: steps.tag_check.outputs.skip == 'false'
+        run: |
+          dotnet build SwiftLaunch.csproj `
+            --configuration Release `
+            --no-restore `
+            -p:Platform=x64
+
+      # ── 7. Publish — self-contained single-file EXE ────────────────────────
+      #   Output lands in: publish/
+      #   Settings mirror the csproj (PublishSingleFile, SelfContained, win-x64)
+      #   but we override the output path for a clean, predictable location.
+      - name: Publish self-contained executable
+        if: steps.tag_check.outputs.skip == 'false'
+        run: |
+          dotnet publish SwiftLaunch.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:PublishReadyToRun=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:Platform=x64 `
+            --output publish/
+
+      # ── 8. Install Inno Setup via Chocolatey ──────────────────────────────
+      - name: Install Inno Setup
+        if: steps.tag_check.outputs.skip == 'false'
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          # Refresh PATH so iscc.exe is available in subsequent steps
+          $env:PATH += ";C:\Program Files (x86)\Inno Setup 6"
+          Write-Host "Inno Setup installed."
+
+      # ── 9. Compile Inno Setup installer ───────────────────────────────────
+      #   Passes APP_VERSION to the .iss script so the installer filename and
+      #   metadata carry the correct version without editing the .iss file.
+      - name: Build installer with Inno Setup
+        if: steps.tag_check.outputs.skip == 'false'
+        shell: pwsh
+        run: |
+          $version = "${{ steps.read_version.outputs.version }}"
+          $iscc    = "C:\Program Files (x86)\Inno Setup 6\iscc.exe"
+
+          & $iscc `
+            /DAPP_VERSION=$version `
+            installer\setup.iss
+
+          # Verify the installer was produced
+          $installer = "installer\Output\SwiftLaunch-v$version.exe"
+          if (-not (Test-Path $installer)) {
+            Write-Error "Installer not found at expected path: $installer"
+            exit 1
+          }
+          Write-Host "Installer built: $installer"
+
+      # ── 10. Create and push the Git tag ────────────────────────────────────
+      - name: Create Git tag
+        if: steps.tag_check.outputs.skip == 'false'
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.read_version.outputs.tag }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag $tag
+          git push origin $tag
+          Write-Host "Pushed tag: $tag"
+
+      # ── 11. Create GitHub Release and upload installer ─────────────────────
+      - name: Create GitHub Release
+        if: steps.tag_check.outputs.skip == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.read_version.outputs.tag }}
+          name:     SwiftLaunch ${{ steps.read_version.outputs.tag }}
+          body: |
+            ## SwiftLaunch ${{ steps.read_version.outputs.tag }}
+
+            ### Installation
+            1. Download **SwiftLaunch-${{ steps.read_version.outputs.tag }}.exe** below.
+            2. Run the installer — it will place SwiftLaunch in your Start Menu and register it for Windows startup.
+            3. Press **Ctrl+Space** to launch.
+
+            ### What's new
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+            ---
+            _Built automatically from commit ${{ github.sha }}_
+          draft:      false
+          prerelease: false
+          files: |
+            installer/Output/SwiftLaunch-v${{ steps.read_version.outputs.version }}.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -8,6 +8,8 @@
 [Oo]bj/
 publish/
 out/
+publish/
+installer/Output/
 
 # ── Visual Studio ─────────────────────────────────────────────
 .vs/

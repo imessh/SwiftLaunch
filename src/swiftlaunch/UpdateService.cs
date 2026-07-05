@@ -29,7 +29,7 @@ namespace SwiftLaunch
     {
         // ── Configuration ──────────────────────────────────────────────────────
         // Replace these two values with your actual GitHub owner and repository name.
-        private const string GitHubOwner = "your-github-username";
+        private const string GitHubOwner = "imessh";
         private const string GitHubRepo  = "SwiftLaunch";
 
         private static readonly string ApiUrl =
