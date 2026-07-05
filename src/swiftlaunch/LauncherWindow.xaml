@@ -1,0 +1,260 @@
+<Window x:Class="SwiftLaunch.LauncherWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SwiftLaunch"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        Topmost="True"
+        ShowInTaskbar="False"
+        Width="560"
+        SizeToContent="Height">
+
+    <Window.Resources>
+        <!-- Colors -->
+        <Color x:Key="BgColor">#0F0F13</Color>
+        <Color x:Key="SurfaceColor">#18181F</Color>
+        <Color x:Key="BorderColor">#2D2D3A</Color>
+        <Color x:Key="AccentColor">#6366F1</Color>
+        <Color x:Key="AccentGlow">#4338CA</Color>
+        <Color x:Key="TextPrimary">#F1F1F5</Color>
+        <Color x:Key="TextSecondary">#6B6B80</Color>
+        <Color x:Key="TextMuted">#3D3D50</Color>
+        <Color x:Key="HoverColor">#1F1F2E</Color>
+        <Color x:Key="SelectedColor">#252540</Color>
+        <Color x:Key="VSCodeColor">#0EA5E9</Color>
+
+        <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}"/>
+        <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
+        <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}"/>
+        <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMuted}"/>
+        <SolidColorBrush x:Key="HoverBrush" Color="{StaticResource HoverColor}"/>
+        <SolidColorBrush x:Key="SelectedBrush" Color="{StaticResource SelectedColor}"/>
+        <SolidColorBrush x:Key="VSCodeBrush" Color="{StaticResource VSCodeColor}"/>
+
+        <!-- Suggestion Item Style -->
+        <Style x:Key="SuggestionItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="6"
+                                Margin="4,1">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource HoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource SelectedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ListBox Style -->
+        <Style x:Key="SuggestionListStyle" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource SuggestionItemStyle}"/>
+        </Style>
+    </Window.Resources>
+
+    <!-- Main container with drop shadow via outer border -->
+    <Border Margin="20" CornerRadius="12">
+        <Border.Effect>
+            <DropShadowEffect Color="#000000" BlurRadius="40" ShadowDepth="0" Opacity="0.7"/>
+        </Border.Effect>
+
+        <Border Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                ClipToBounds="True">
+
+            <StackPanel>
+                <!-- Accent top line -->
+                <Border Height="2" CornerRadius="12,12,0,0">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#6366F1" Offset="0"/>
+                            <GradientStop Color="#8B5CF6" Offset="0.5"/>
+                            <GradientStop Color="#0EA5E9" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+
+                <!-- Input area -->
+                <Grid Margin="0" Background="Transparent">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Search icon / mode indicator -->
+                    <Border Grid.Column="0" Width="52" Height="52" 
+                            VerticalAlignment="Center">
+                        <TextBlock x:Name="ModeIcon"
+                                   Text="⌕"
+                                   FontSize="20"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- Text input -->
+                    <TextBox x:Name="SearchBox"
+                             Grid.Column="1"
+                             Background="Transparent"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             BorderThickness="0"
+                             FontSize="18"
+                             FontFamily="Segoe UI Variable, Segoe UI, sans-serif"
+                             FontWeight="Light"
+                             VerticalAlignment="Center"
+                             Height="52"
+                             Padding="0,0,0,0"
+                             VerticalContentAlignment="Center"
+                             CaretBrush="{StaticResource AccentBrush}"
+                             SelectionBrush="{StaticResource AccentBrush}"
+                             FocusVisualStyle="{x:Null}">
+                        <TextBox.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="0"/>
+                            </Style>
+                        </TextBox.Resources>
+                    </TextBox>
+
+                    <!-- Mode badge -->
+                    <Border x:Name="ModeBadge"
+                            Grid.Column="2"
+                            Margin="0,0,14,0"
+                            Padding="8,3"
+                            CornerRadius="5"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                        <TextBlock x:Name="ModeBadgeText"
+                                   FontSize="10"
+                                   FontWeight="Medium"/>
+                    </Border>
+                </Grid>
+
+                <!-- Divider (only shown when suggestions exist) -->
+                <Border x:Name="Divider"
+                        Height="1"
+                        Background="{StaticResource BorderBrush}"
+                        Margin="14,0"
+                        Visibility="Collapsed"/>
+
+                <!-- Suggestions list -->
+                <ListBox x:Name="SuggestionList"
+                         Style="{StaticResource SuggestionListStyle}"
+                         Margin="0,4,0,4"
+                         MaxHeight="280"
+                         Visibility="Collapsed"
+                         MouseDoubleClick="SuggestionList_MouseDoubleClick">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Item icon -->
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding Icon}"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           Opacity="0.8"/>
+
+                                <!-- Name + path -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
+                                    <TextBlock Text="{Binding DisplayName}"
+                                               FontSize="13.5"
+                                               FontWeight="Medium"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               FontFamily="Segoe UI Variable, Segoe UI, sans-serif"/>
+                                    <TextBlock Text="{Binding SubText}"
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               FontFamily="Segoe UI Variable, Segoe UI, sans-serif"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+
+                                <!-- Type badge -->
+                                <Border Grid.Column="2"
+                                        Background="{Binding BadgeBrush}"
+                                        Padding="6,2"
+                                        CornerRadius="4"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,0,0">
+                                    <TextBlock Text="{Binding BadgeText}"
+                                               FontSize="10"
+                                               FontWeight="Medium"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Opacity="0.85"/>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Status bar -->
+                <Border x:Name="StatusBar"
+                        Background="#0D0D11"
+                        Padding="14,6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="StatusText"
+                                   Grid.Column="0"
+                                   Text="Type a folder name to open it · c.folder to open in VS Code"
+                                   FontSize="10.5"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontFamily="Segoe UI Variable, Segoe UI, sans-serif"
+                                   VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <TextBlock Text="↑↓ navigate"
+                                       FontSize="10"
+                                       Margin="0,0,10,0"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       FontFamily="Segoe UI Variable, Segoe UI, sans-serif"/>
+                            <TextBlock Text="↵ open"
+                                       FontSize="10"
+                                       Margin="0,0,10,0"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       FontFamily="Segoe UI Variable, Segoe UI, sans-serif"/>
+                            <TextBlock Text="ESC close"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       FontFamily="Segoe UI Variable, Segoe UI, sans-serif"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Border>
+    </Border>
+</Window>

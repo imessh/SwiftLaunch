@@ -1,0 +1,102 @@
+# ──────────────────────────────────────────────────────────────
+# SwiftLaunch .gitignore
+# .NET 8 · WPF · Visual Studio / VS Code · Windows
+# ──────────────────────────────────────────────────────────────
+
+# ── Build output ──────────────────────────────────────────────
+[Bb]in/
+[Oo]bj/
+publish/
+out/
+
+# ── Visual Studio ─────────────────────────────────────────────
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# ── VS Code ───────────────────────────────────────────────────
+.vscode/*
+# Keep recommended workspace configuration
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+
+# ── Test results ──────────────────────────────────────────────
+TestResults/
+[Tt]est[Rr]esult*/
+coverage/
+*.coveragexml
+*.trx
+
+# ── NuGet ─────────────────────────────────────────────────────
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ── .NET ──────────────────────────────────────────────────────
+*.cache
+*.ilk
+*.meta
+*.pdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# ── Rider ─────────────────────────────────────────────────────
+.idea/
+*.sln.iml
+
+# ── Windows ───────────────────────────────────────────────────
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ── macOS (if any cross-platform contributors) ────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ── Logs ──────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ── Secrets / local config ────────────────────────────────────
+*.env
+*.env.local
+appsettings.local.json
+secrets.json
+
+# ── App data (runtime database, not source) ───────────────────
+# SwiftLaunch writes its SQLite index to %LOCALAPPDATA%\SwiftLaunch\
+# Nothing in the repo directory should match, but guard anyway:
+index.db
+index.db-wal
+index.db-shm
