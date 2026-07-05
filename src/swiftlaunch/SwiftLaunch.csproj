@@ -17,7 +17,13 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <Platforms>x64</Platforms>
-    <ApplicationIcon>app.ico</ApplicationIcon>
+
+    <!-- App version — bump this for each release and tag Git accordingly.
+         UpdateService reads this via Assembly.GetName().Version to compare
+         against the GitHub releases/latest API tag. -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0</AssemblyVersion>
+    <FileVersion>1.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

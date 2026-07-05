@@ -28,6 +28,9 @@ namespace SwiftLaunch
         private static readonly WpfBrush RecentBadgeBrush  = new(WpfColor.FromRgb(80,  50,  100));
         private static readonly WpfBrush CreateBadgeBrush  = new(WpfColor.FromRgb(20,  100, 60));
 
+        // Stored update info so the [Update Now] button can open the correct URL
+        private UpdateInfo? _pendingUpdate;
+
         public LauncherWindow(FolderIndexer indexer)
         {
             _indexer = indexer;
@@ -495,6 +498,35 @@ namespace SwiftLaunch
             e.Cancel = true;
             Hide();
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  UPDATE BANNER
+    // ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Called by App.xaml.cs (on the UI thread) when UpdateService detects a
+    /// newer version. Reveals the update banner and stores the URL for the button.
+    /// </summary>
+    public void ShowUpdateBanner(UpdateInfo info)
+    {
+        _pendingUpdate = info;
+        UpdateBannerText.Text  = $"Version {info.LatestVersion} available";
+        UpdateBanner.Visibility = Visibility.Visible;
+    }
+
+    private void UpdateNowButton_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateService.OpenReleasePage(_pendingUpdate?.ReleasePageUrl ?? "");
+        // Keep the banner visible so the user can click again if the browser
+        // didn't open, but hide the launcher so it's not in the way.
+        Hide();
+    }
+
+    private void UpdateLaterButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Dismiss for this session — banner stays hidden until next launch
+        UpdateBanner.Visibility = Visibility.Collapsed;
     }
 
     // ─────────────────────────────────────────────────────────────────

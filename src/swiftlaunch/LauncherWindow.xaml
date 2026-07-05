@@ -25,18 +25,18 @@
         <Color x:Key="SelectedColor">#252540</Color>
         <Color x:Key="VSCodeColor">#0EA5E9</Color>
 
-        <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}"/>
-        <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
-        <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
-        <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+        <SolidColorBrush x:Key="BgBrush"          Color="{StaticResource BgColor}"/>
+        <SolidColorBrush x:Key="SurfaceBrush"     Color="{StaticResource SurfaceColor}"/>
+        <SolidColorBrush x:Key="BorderBrush"      Color="{StaticResource BorderColor}"/>
+        <SolidColorBrush x:Key="AccentBrush"      Color="{StaticResource AccentColor}"/>
         <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}"/>
         <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}"/>
-        <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMuted}"/>
-        <SolidColorBrush x:Key="HoverBrush" Color="{StaticResource HoverColor}"/>
-        <SolidColorBrush x:Key="SelectedBrush" Color="{StaticResource SelectedColor}"/>
-        <SolidColorBrush x:Key="VSCodeBrush" Color="{StaticResource VSCodeColor}"/>
+        <SolidColorBrush x:Key="TextMutedBrush"   Color="{StaticResource TextMuted}"/>
+        <SolidColorBrush x:Key="HoverBrush"       Color="{StaticResource HoverColor}"/>
+        <SolidColorBrush x:Key="SelectedBrush"    Color="{StaticResource SelectedColor}"/>
+        <SolidColorBrush x:Key="VSCodeBrush"      Color="{StaticResource VSCodeColor}"/>
 
-        <!-- Suggestion Item Style -->
+        <!-- Suggestion Item Style (unchanged) -->
         <Style x:Key="SuggestionItemStyle" TargetType="ListBoxItem">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
@@ -45,7 +45,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="border" 
+                        <Border x:Name="border"
                                 Background="{TemplateBinding Background}"
                                 Padding="{TemplateBinding Padding}"
                                 CornerRadius="6"
@@ -65,7 +65,7 @@
             </Setter>
         </Style>
 
-        <!-- ListBox Style -->
+        <!-- ListBox Style (unchanged) -->
         <Style x:Key="SuggestionListStyle" TargetType="ListBox">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -74,6 +74,65 @@
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="ItemContainerStyle" Value="{StaticResource SuggestionItemStyle}"/>
+        </Style>
+
+        <!-- Update banner button style -->
+        <Style x:Key="UpdateButtonStyle" TargetType="Button">
+            <Setter Property="Background"   Value="#6366F1"/>
+            <Setter Property="Foreground"   Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"      Value="10,4"/>
+            <Setter Property="FontSize"     Value="10.5"/>
+            <Setter Property="FontWeight"   Value="Medium"/>
+            <Setter Property="Cursor"       Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#4F46E5"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#4338CA"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- "Later" dismiss button style -->
+        <Style x:Key="DismissButtonStyle" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#6B6B80"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="8,4"/>
+            <Setter Property="FontSize"        Value="10.5"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#1F1F2E"/>
+                                <Setter Property="Foreground" Value="#F1F1F5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -90,7 +149,7 @@
                 ClipToBounds="True">
 
             <StackPanel>
-                <!-- Accent top line -->
+                <!-- Accent top line (unchanged) -->
                 <Border Height="2" CornerRadius="12,12,0,0">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
@@ -101,7 +160,60 @@
                     </Border.Background>
                 </Border>
 
-                <!-- Input area -->
+                <!-- ── UPDATE BANNER ──────────────────────────────────────────
+                     Collapsed by default. LauncherWindow.xaml.cs calls
+                     ShowUpdateBanner(UpdateInfo) to make it visible.
+                ─────────────────────────────────────────────────────────────── -->
+                <Border x:Name="UpdateBanner"
+                        Visibility="Collapsed"
+                        Background="#12122A"
+                        BorderBrush="#6366F1"
+                        BorderThickness="0,0,0,1"
+                        Padding="14,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Update icon -->
+                        <TextBlock Grid.Column="0"
+                                   Text="↑"
+                                   FontSize="13"
+                                   FontWeight="Bold"
+                                   Foreground="#6366F1"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+
+                        <!-- Version text -->
+                        <TextBlock x:Name="UpdateBannerText"
+                                   Grid.Column="1"
+                                   FontSize="11"
+                                   FontFamily="Segoe UI Variable, Segoe UI, sans-serif"
+                                   Foreground="#A5B4FC"
+                                   VerticalAlignment="Center"
+                                   Text="New update available"/>
+
+                        <!-- Update Now button -->
+                        <Button x:Name="UpdateNowButton"
+                                Grid.Column="2"
+                                Style="{StaticResource UpdateButtonStyle}"
+                                Content="Update Now"
+                                Margin="10,0,6,0"
+                                Click="UpdateNowButton_Click"/>
+
+                        <!-- Later / dismiss button -->
+                        <Button x:Name="UpdateLaterButton"
+                                Grid.Column="3"
+                                Style="{StaticResource DismissButtonStyle}"
+                                Content="Later"
+                                Click="UpdateLaterButton_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- Input area (unchanged) -->
                 <Grid Margin="0" Background="Transparent">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -110,8 +222,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Search icon / mode indicator -->
-                    <Border Grid.Column="0" Width="52" Height="52" 
-                            VerticalAlignment="Center">
+                    <Border Grid.Column="0" Width="52" Height="52" VerticalAlignment="Center">
                         <TextBlock x:Name="ModeIcon"
                                    Text="⌕"
                                    FontSize="20"
@@ -157,14 +268,14 @@
                     </Border>
                 </Grid>
 
-                <!-- Divider (only shown when suggestions exist) -->
+                <!-- Divider (unchanged) -->
                 <Border x:Name="Divider"
                         Height="1"
                         Background="{StaticResource BorderBrush}"
                         Margin="14,0"
                         Visibility="Collapsed"/>
 
-                <!-- Suggestions list -->
+                <!-- Suggestions list (unchanged) -->
                 <ListBox x:Name="SuggestionList"
                          Style="{StaticResource SuggestionListStyle}"
                          Margin="0,4,0,4"
@@ -180,7 +291,6 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Item icon -->
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding Icon}"
                                            FontSize="14"
@@ -188,7 +298,6 @@
                                            HorizontalAlignment="Center"
                                            Opacity="0.8"/>
 
-                                <!-- Name + path -->
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
                                     <TextBlock Text="{Binding DisplayName}"
                                                FontSize="13.5"
@@ -202,7 +311,6 @@
                                                TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
 
-                                <!-- Type badge -->
                                 <Border Grid.Column="2"
                                         Background="{Binding BadgeBrush}"
                                         Padding="6,2"
@@ -220,7 +328,7 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <!-- Status bar -->
+                <!-- Status bar (unchanged) -->
                 <Border x:Name="StatusBar"
                         Background="#0D0D11"
                         Padding="14,6">
@@ -231,7 +339,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="StatusText"
                                    Grid.Column="0"
-                                   Text="Type a folder name to open it · c.folder to open in VS Code"
+                                   Text="Type a folder name to open it · folder v = VS Code · child parent = create"
                                    FontSize="10.5"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FontFamily="Segoe UI Variable, Segoe UI, sans-serif"
@@ -254,6 +362,7 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+
             </StackPanel>
         </Border>
     </Border>
