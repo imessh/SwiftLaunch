@@ -3,17 +3,21 @@
 #  Trigger : push to main
 #  Runner  : windows-latest
 #  Result  : self-contained EXE → Inno Setup installer → GitHub Release
+#
+#  Repo structure this file is written for:
+#    repo/
+#    ├── .github/workflows/ci.yml
+#    ├── assets/app.ico
+#    ├── installer/setup.iss
+#    └── src/swiftlaunch/SwiftLaunch.csproj
 # ══════════════════════════════════════════════════════════════════════════════
 
 name: Build and Release
 
 on:
   push:
-    branches: [ "main", "feat-1-ci_cd_adding" ]
-  pull_request:
-    branches: [ "main" ]
-
-  # Allow manual trigger from the Actions tab (useful for re-running a release)
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -21,7 +25,6 @@ jobs:
     name: Build · Package · Release
     runs-on: windows-latest
 
-    # Required so the job can create tags and GitHub Releases
     permissions:
       contents: write
 
@@ -31,7 +34,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # full history needed for git tag operations
+          fetch-depth: 0
 
       # ── 2. Setup .NET 8 SDK ────────────────────────────────────────────────
       - name: Setup .NET 8 SDK
@@ -40,14 +43,12 @@ jobs:
           dotnet-version: '8.0.x'
 
       # ── 3. Read version from .csproj ───────────────────────────────────────
-      #   Parses <Version>X.X.X</Version> and exposes it as:
-      #     ${{ steps.read_version.outputs.version }}     →  1.0.0
-      #     ${{ steps.read_version.outputs.tag }}         →  v1.0.0
+      #  csproj lives at: src/swiftlaunch/SwiftLaunch.csproj
       - name: Read version from csproj
         id: read_version
         shell: pwsh
         run: |
-          [xml]$csproj = Get-Content "SwiftLaunch.csproj"
+          [xml]$csproj = Get-Content "src\swiftlaunch\SwiftLaunch.csproj"
           $version = $csproj.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
           if (-not $version) {
             Write-Error "Could not read <Version> from SwiftLaunch.csproj"
@@ -58,8 +59,7 @@ jobs:
           Write-Output "tag=$tag"         >> $env:GITHUB_OUTPUT
           Write-Host "Detected version: $version  (tag: $tag)"
 
-      # ── 4. Guard: skip if this tag already exists ──────────────────────────
-      #   Prevents duplicate releases when a push doesn't bump the version.
+      # ── 4. Guard: skip if tag already exists ──────────────────────────────
       - name: Check if tag already exists
         id: tag_check
         shell: pwsh
@@ -75,27 +75,27 @@ jobs:
           }
 
       # ── 5. Restore NuGet packages ──────────────────────────────────────────
+      #  Run from repo root; point at the csproj by path
       - name: Restore dependencies
         if: steps.tag_check.outputs.skip == 'false'
-        run: dotnet restore SwiftLaunch.csproj
+        run: dotnet restore src\swiftlaunch\SwiftLaunch.csproj
 
       # ── 6. Build (Release) ─────────────────────────────────────────────────
       - name: Build in Release mode
         if: steps.tag_check.outputs.skip == 'false'
         run: |
-          dotnet build SwiftLaunch.csproj `
+          dotnet build src\swiftlaunch\SwiftLaunch.csproj `
             --configuration Release `
             --no-restore `
             -p:Platform=x64
 
       # ── 7. Publish — self-contained single-file EXE ────────────────────────
-      #   Output lands in: publish/
-      #   Settings mirror the csproj (PublishSingleFile, SelfContained, win-x64)
-      #   but we override the output path for a clean, predictable location.
+      #  Output goes to: publish/ at the repo root (predictable path for
+      #  setup.iss which references ..\publish\SwiftLaunch.exe from installer/)
       - name: Publish self-contained executable
         if: steps.tag_check.outputs.skip == 'false'
         run: |
-          dotnet publish SwiftLaunch.csproj `
+          dotnet publish src\swiftlaunch\SwiftLaunch.csproj `
             --configuration Release `
             --runtime win-x64 `
             --self-contained true `
@@ -104,7 +104,7 @@ jobs:
             -p:PublishReadyToRun=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:Platform=x64 `
-            --output publish/
+            --output publish\
 
       # ── 8. Install Inno Setup via Chocolatey ──────────────────────────────
       - name: Install Inno Setup
@@ -112,13 +112,11 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --yes --no-progress
-          # Refresh PATH so iscc.exe is available in subsequent steps
-          $env:PATH += ";C:\Program Files (x86)\Inno Setup 6"
           Write-Host "Inno Setup installed."
 
-      # ── 9. Compile Inno Setup installer ───────────────────────────────────
-      #   Passes APP_VERSION to the .iss script so the installer filename and
-      #   metadata carry the correct version without editing the .iss file.
+      # ── 9. Build installer ─────────────────────────────────────────────────
+      #  setup.iss is at: installer\setup.iss  (repo root level)
+      #  Output will be:  installer\Output\SwiftLaunch-vX.X.X.exe
       - name: Build installer with Inno Setup
         if: steps.tag_check.outputs.skip == 'false'
         shell: pwsh
@@ -130,15 +128,14 @@ jobs:
             /DAPP_VERSION=$version `
             installer\setup.iss
 
-          # Verify the installer was produced
           $installer = "installer\Output\SwiftLaunch-v$version.exe"
           if (-not (Test-Path $installer)) {
-            Write-Error "Installer not found at expected path: $installer"
+            Write-Error "Installer not found at: $installer"
             exit 1
           }
           Write-Host "Installer built: $installer"
 
-      # ── 10. Create and push the Git tag ────────────────────────────────────
+      # ── 10. Create and push the Git tag ───────────────────────────────────
       - name: Create Git tag
         if: steps.tag_check.outputs.skip == 'false'
         shell: pwsh
@@ -150,7 +147,7 @@ jobs:
           git push origin $tag
           Write-Host "Pushed tag: $tag"
 
-      # ── 11. Create GitHub Release and upload installer ─────────────────────
+      # ── 11. Create GitHub Release and upload installer ────────────────────
       - name: Create GitHub Release
         if: steps.tag_check.outputs.skip == 'false'
         uses: softprops/action-gh-release@v2
@@ -172,7 +169,6 @@ jobs:
             _Built automatically from commit ${{ github.sha }}_
           draft:      false
           prerelease: false
-          files: |
-            installer/Output/SwiftLaunch-v${{ steps.read_version.outputs.version }}.exe
+          files: installer\Output\SwiftLaunch-v${{ steps.read_version.outputs.version }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

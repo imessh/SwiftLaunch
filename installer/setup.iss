@@ -1,21 +1,27 @@
 ; ══════════════════════════════════════════════════════════════════════════════
 ;  SwiftLaunch — Inno Setup Script
 ;
-;  How to build manually:
+;  Repo structure this file is written for:
+;    repo/
+;    ├── assets/app.ico
+;    ├── installer/setup.iss        ← this file
+;    ├── installer/Output/          ← installer EXE output
+;    ├── publish/SwiftLaunch.exe    ← dotnet publish output
+;    └── src/swiftlaunch/...
+;
+;  How to build manually (run from repo root):
 ;    iscc /DAPP_VERSION=1.0.0 installer\setup.iss
 ;
-;  The CI pipeline passes APP_VERSION automatically via /DAPP_VERSION=X.X.X
-;  so you never need to edit this file when bumping the version.
+;  CI passes APP_VERSION automatically — never edit the version here.
 ; ══════════════════════════════════════════════════════════════════════════════
 
 #ifndef APP_VERSION
-  ; Fallback for local manual builds — keep this in sync with your csproj.
   #define APP_VERSION "1.0.0"
 #endif
 
 #define AppName        "SwiftLaunch"
 #define AppPublisher   "IMESH"
-#define AppURL         "https://github.com/imessh/SwiftLaunch"
+#define AppURL         "https://github.com/your-github-username/SwiftLaunch"
 #define AppExeName     "SwiftLaunch.exe"
 #define AppDescription "A lightning-fast keyboard-driven folder launcher for Windows"
 
@@ -31,7 +37,7 @@ AppSupportURL       = {#AppURL}/issues
 AppUpdatesURL       = {#AppURL}/releases
 
 ; ── Output ────────────────────────────────────────────────────────────────────
-; The CI workflow expects the file at installer\Output\SwiftLaunch-vX.X.X.exe
+; CI expects:  installer\Output\SwiftLaunch-vX.X.X.exe
 OutputDir           = Output
 OutputBaseFilename  = SwiftLaunch-v{#APP_VERSION}
 
@@ -41,6 +47,8 @@ DefaultGroupName    = {#AppName}
 DisableProgramGroupPage = yes
 
 ; ── Installer appearance ──────────────────────────────────────────────────────
+; setup.iss is in installer/
+; assets/app.ico is one level up, then into assets/
 SetupIconFile       = ..\assets\app.ico
 WizardStyle         = modern
 WizardSizePercent   = 110
@@ -51,8 +59,6 @@ SolidCompression    = yes
 LZMAUseSeparateProcess = yes
 
 ; ── Privileges ────────────────────────────────────────────────────────────────
-; PrivilegesRequired=lowest installs per-user without UAC prompt.
-; Change to "admin" if you need HKLM registry writes.
 PrivilegesRequired  = lowest
 PrivilegesRequiredOverridesAllowed = dialog
 
@@ -61,32 +67,24 @@ MinVersion          = 10.0.17763
 ArchitecturesAllowed            = x64
 ArchitecturesInstallIn64BitMode = x64
 
-; ── Signing (optional — uncomment and configure if you have a code signing cert)
-; SignTool = signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "cert.pfx" /p "password" $f
-
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-; Offer a desktop shortcut (unchecked by default — respects user preference)
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; The published single-file executable from the CI publish step
+; Published EXE is at: publish\SwiftLaunch.exe  (repo root)
+; setup.iss is in:     installer\
+; So relative path is: ..\publish\SwiftLaunch.exe
 Source: "..\publish\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-; Start Menu shortcut
-Name: "{group}\{#AppName}";        Filename: "{app}\{#AppExeName}"; Comment: "{#AppDescription}"
+Name: "{group}\{#AppName}";           Filename: "{app}\{#AppExeName}"; Comment: "{#AppDescription}"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
-
-; Desktop shortcut (only created if user chose the task above)
-Name: "{autodesktop}\{#AppName}";  Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}";     Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Registry]
-; Register SwiftLaunch for Windows startup (HKCU — no admin required).
-; This mirrors what StartupManager.cs does at runtime, but the installer
-; sets it immediately so the app starts after the very first reboot.
 Root:      HKCU
 Subkey:    Software\Microsoft\Windows\CurrentVersion\Run
 ValueType: string
@@ -95,18 +93,14 @@ ValueData: """{app}\{#AppExeName}"""
 Flags:     uninsdeletevalue
 
 [Run]
-; Launch SwiftLaunch immediately after installation finishes (optional).
 Filename:    "{app}\{#AppExeName}"
 Description: "Launch SwiftLaunch now"
 Flags:       nowait postinstall skipifsilent
 
 [UninstallRun]
-; Gracefully close any running instance before uninstalling
 Filename:    "taskkill.exe"
 Parameters:  "/f /im {#AppExeName}"
 Flags:       runhidden skipifdoesntexist
 
 [UninstallDelete]
-; Clean up the SQLite index left in %LOCALAPPDATA%\SwiftLaunch
-; Comment this out if you want to preserve the user's index on uninstall.
 Type: filesandordirs; Name: "{localappdata}\SwiftLaunch"
