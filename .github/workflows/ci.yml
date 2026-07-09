@@ -18,6 +18,7 @@ on:
   push:
     branches:
       - main
+      - feat-1-ci_cd_adding
   workflow_dispatch:
 
 jobs:
