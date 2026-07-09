@@ -498,7 +498,7 @@ namespace SwiftLaunch
             e.Cancel = true;
             Hide();
         }
-    }
+    
 
     // ─────────────────────────────────────────────────────────────────
     //  UPDATE BANNER
@@ -527,6 +527,7 @@ namespace SwiftLaunch
     {
         // Dismiss for this session — banner stays hidden until next launch
         UpdateBanner.Visibility = Visibility.Collapsed;
+    }
     }
 
     // ─────────────────────────────────────────────────────────────────
