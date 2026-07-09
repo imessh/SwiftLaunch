@@ -42,6 +42,13 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+
+      - name: Show repository structure 
+        shell: pwsh
+        run: |
+          Get-Location
+          Get-ChildItem -Recurse
+
       # ── 3. Read version from .csproj ───────────────────────────────────────
       #  csproj lives at: src/swiftlaunch/SwiftLaunch.csproj
       - name: Read version from csproj
