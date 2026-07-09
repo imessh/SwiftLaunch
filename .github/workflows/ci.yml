@@ -123,7 +123,7 @@ jobs:
           Write-Host "Inno Setup installed."
 
       # ── 9. Build installer ─────────────────────────────────────────────────
-      #  setup.iss is at: installer\setup.iss  (repo root level)
+      #  setup.iss is at: installer\setup.iss  (repo root leve
       #  Output will be:  installer\Output\SwiftLaunch-vX.X.X.exe
       - name: Build installer with Inno Setup
         if: steps.tag_check.outputs.skip == 'false'
