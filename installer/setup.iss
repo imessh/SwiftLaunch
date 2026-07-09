@@ -85,12 +85,8 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}";     Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Registry]
-Root:      HKCU
-Subkey:    Software\Microsoft\Windows\CurrentVersion\Run
-ValueType: string
-ValueName: SwiftLaunch
-ValueData: """{app}\{#AppExeName}"""
-Flags:     uninsdeletevalue
+Root: HKCU; Subkey: "Software\SwiftLaunch"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"
+Root: HKCU; Subkey: "Software\SwiftLaunch"; ValueType: string; ValueName: "Version"; ValueData: "{#APP_VERSION}"
 
 [Run]
 Filename:    "{app}\{#AppExeName}"
