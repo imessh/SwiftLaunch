@@ -1,7 +1,6 @@
 using System;
 using System.Windows;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Diagnostics;
 
 using WinForms = System.Windows.Forms;
@@ -34,6 +33,10 @@ namespace SwiftLaunch
             // ── FEATURE 2: register for Windows startup on first launch if not already set ──
             if (!StartupManager.IsEnabled())
                 StartupManager.Enable();
+            else
+                // BUG FIX: if it's already registered, make sure the path is still correct
+                // (e.g. the exe was rebuilt/republished or moved since it first registered).
+                StartupManager.RepairIfStale();
 
             _indexer = new FolderIndexer();
             _indexer.StartBackgroundIndex();
@@ -43,26 +46,6 @@ namespace SwiftLaunch
             _hotkeyManager = new HotkeyManager();
             _hotkeyManager.HotkeyPressed += OnHotkeyPressed;
             _hotkeyManager.Register();
-
-            // Check for updates in the background — does not block startup
-            _ = CheckForUpdateAsync();
-        }
-
-        private async Task CheckForUpdateAsync()
-        {
-            var update = await UpdateService.CheckForUpdateAsync().ConfigureAwait(false);
-            if (update is null) return;
-
-            // Marshal back to the UI thread before touching the window
-            Dispatcher.Invoke(() =>
-            {
-                // Create the launcher window now if it hasn't been created yet,
-                // so we have somewhere to show the banner.
-                if (_launcherWindow == null || !_launcherWindow.IsLoaded)
-                    _launcherWindow = new LauncherWindow(_indexer!);
-
-                _launcherWindow.ShowUpdateBanner(update);
-            });
         }
 
         private void SetupTrayIcon()

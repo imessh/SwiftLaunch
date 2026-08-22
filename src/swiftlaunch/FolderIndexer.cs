@@ -314,6 +314,14 @@ namespace SwiftLaunch
 
         private async Task RunIndexAsync(CancellationToken token)
         {
+            // BUG FIX: every row written during this run is stamped with runTs
+            // (see FlushBatch). Once the scan finishes without being cancelled,
+            // anything still holding an OLDER indexed_at is a folder that used
+            // to exist but wasn't seen this time around — i.e. it was deleted
+            // or renamed away — so it's swept from the index below. This is
+            // what makes deletes disappear from suggestions, not just creates.
+            var runTs = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
             var drives = DriveInfo.GetDrives()
                 .Where(d => d.IsReady && (d.DriveType == DriveType.Fixed || d.DriveType == DriveType.Removable))
                 .Select(d => d.RootDirectory.FullName)
@@ -324,18 +332,32 @@ namespace SwiftLaunch
             foreach (var root in drives)
             {
                 if (token.IsCancellationRequested) return;
-                await ScanDirectoryAsync(root, 0, batch, token);
+                await ScanDirectoryAsync(root, 0, batch, token, runTs);
             }
 
-            if (batch.Count > 0) FlushBatch(batch);
+            if (token.IsCancellationRequested) return;
+            if (batch.Count > 0) FlushBatch(batch, runTs);
 
-            using var conn = OpenConnection();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                INSERT OR REPLACE INTO meta(key, value) VALUES('last_index', @ts)
-                """;
-            cmd.Parameters.AddWithValue("@ts", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            cmd.ExecuteNonQuery();
+            using (var conn = OpenConnection())
+            {
+                // Sweep stale rows (folders no longer on disk) — only safe to do
+                // once the full scan has completed without cancellation, so a
+                // partial/aborted scan never wipes out folders it simply hadn't
+                // reached yet.
+                using (var cleanup = conn.CreateCommand())
+                {
+                    cleanup.CommandText = "DELETE FROM folders WHERE indexed_at < @runTs";
+                    cleanup.Parameters.AddWithValue("@runTs", runTs);
+                    cleanup.ExecuteNonQuery();
+                }
+
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    INSERT OR REPLACE INTO meta(key, value) VALUES('last_index', @ts)
+                    """;
+                cmd.Parameters.AddWithValue("@ts", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                cmd.ExecuteNonQuery();
+            }
 
             LoadHotCache();
         }
@@ -343,7 +365,8 @@ namespace SwiftLaunch
         private async Task ScanDirectoryAsync(
             string path, int depth,
             List<(string Name, string Path, int Depth)> batch,
-            CancellationToken token)
+            CancellationToken token,
+            long runTs)
         {
             if (depth > MaxDepth || token.IsCancellationRequested) return;
 
@@ -363,31 +386,38 @@ namespace SwiftLaunch
 
                 if (batch.Count >= 500)
                 {
-                    FlushBatch(batch);
+                    FlushBatch(batch, runTs);
                     batch.Clear();
                     await Task.Delay(10, token);
                 }
 
-                await ScanDirectoryAsync(dir, depth + 1, batch, token);
+                await ScanDirectoryAsync(dir, depth + 1, batch, token, runTs);
             }
         }
 
-        private void FlushBatch(List<(string Name, string Path, int Depth)> batch)
+        private void FlushBatch(List<(string Name, string Path, int Depth)> batch, long runTs)
         {
             try
             {
                 using var conn = OpenConnection();
                 using var tx   = conn.BeginTransaction();
                 using var cmd  = conn.CreateCommand();
+                // BUG FIX: was "INSERT OR IGNORE", which meant a folder already
+                // in the table kept its OLD indexed_at forever, so it looked
+                // "stale" and got swept even though it still exists — and worse,
+                // a truly deleted folder's row was never touched/removed at all.
+                // INSERT OR REPLACE refreshes indexed_at on every row we still
+                // see on disk, which is what lets the sweep in RunIndexAsync
+                // correctly identify (and only identify) folders that are gone.
                 cmd.CommandText = """
-                    INSERT OR IGNORE INTO folders(name, path, depth, indexed_at)
+                    INSERT OR REPLACE INTO folders(name, path, depth, indexed_at)
                     VALUES(@name, @path, @depth, @ts)
                     """;
                 var pName  = cmd.Parameters.Add("@name",  SqliteType.Text);
                 var pPath  = cmd.Parameters.Add("@path",  SqliteType.Text);
                 var pDepth = cmd.Parameters.Add("@depth", SqliteType.Integer);
                 var pTs    = cmd.Parameters.Add("@ts",    SqliteType.Integer);
-                pTs.Value  = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                pTs.Value  = runTs;
 
                 foreach (var (name, path, depth) in batch)
                 {
@@ -431,6 +461,30 @@ namespace SwiftLaunch
                     _hotCache = list;
             }
             catch { }
+        }
+
+        // ── FEATURE: default suggestions shown as soon as the launcher opens,
+        //    before any typing — top N folders blending frequency (open_count)
+        //    and recency (hot cache is loaded most-recently-opened first, so a
+        //    stable sort on frequency keeps recently-opened folders ahead of
+        //    older ones with the same open_count). Refreshes automatically
+        //    because RecordOpen() reloads the hot cache after every open.
+        public List<SearchResult> GetDefaultSuggestions(int maxResults = 5)
+        {
+            lock (_cacheLock)
+            {
+                return _hotCache
+                    .OrderByDescending(h => h.Frequency)
+                    .Take(maxResults)
+                    .Select(h => new SearchResult
+                    {
+                        Path     = h.Path,
+                        Name     = h.Name,
+                        Score    = h.Frequency,
+                        IsRecent = true
+                    })
+                    .ToList();
+            }
         }
 
         public List<SearchResult> Search(string query, int maxResults = 8)
