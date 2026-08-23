@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Portable mode (no registry writes)
 - Network drive support
 
+## [v1.0.1] - 2026-08-23
+
+### Fixed
+- Enter now launches a suggestion after it is selected with a mouse click
+- Installed app shortcuts use the SwiftLaunch application icon
+
 ---
 
 ## [v1.0.0] — 2025-07-05
@@ -56,5 +62,6 @@ Initial release of SwiftLaunch.
 ---
 
 <!-- Links -->
-[Unreleased]: https://github.com/your-username/SwiftLaunch/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/your-username/SwiftLaunch/compare/v1.0.1...HEAD
+[v1.0.1]: https://github.com/your-username/SwiftLaunch/releases/tag/v1.0.1
 [v1.0.0]: https://github.com/your-username/SwiftLaunch/releases/tag/v1.0.0

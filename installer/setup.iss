@@ -2,10 +2,10 @@
 ; SwiftLaunch — Inno Setup Script
 ;
 ; Build:
-; iscc /DAPP_VERSION=1.0.0 installer\setup.iss
+; iscc /DAPP_VERSION=1.0.1 installer\setup.iss
 ;
 ; Output:
-; installer\Output\SwiftLaunch-v1.0.0.exe
+; installer\Output\SwiftLaunch-v1.0.1.exe
 ; ══════════════════════════════════════════════════════════════════════════════
 
 
