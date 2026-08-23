@@ -84,19 +84,18 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 
 [Files]
-
 ; Published application
 Source: "..\publish\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-
+Source: "..\assets\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 
 [Icons]
 
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Comment: "{#AppDescription}"
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\app.ico"; Comment: "{#AppDescription}"
 
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\app.ico"; Tasks: desktopicon
 
 
 

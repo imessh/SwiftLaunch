@@ -46,6 +46,14 @@ namespace SwiftLaunch
 
         private const int MaxDepth = 8;
 
+        // Event raised when the index or hot cache is updated (reindex, rename, record open)
+        public event EventHandler? IndexChanged;
+
+        private void OnIndexChanged()
+        {
+            try { IndexChanged?.Invoke(this, EventArgs.Empty); } catch { }
+        }
+
         public FolderIndexer()
         {
             var appData = Path.Combine(
@@ -59,6 +67,20 @@ namespace SwiftLaunch
 
             _watcherDebounce = new System.Timers.Timer(WatcherDebounceMs) { AutoReset = false };
             _watcherDebounce.Elapsed += (_, _) => ForceReindex();
+        }
+
+        // Simple file logger for diagnosing watcher / update issues.
+        private void DebugLog(string msg)
+        {
+            try
+            {
+                var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SwiftLaunch");
+                Directory.CreateDirectory(appData);
+                var f = Path.Combine(appData, "debug.log");
+                var line = DateTimeOffset.UtcNow.ToString("o") + " " + msg + "\n";
+                File.AppendAllText(f, line);
+            }
+            catch { }
         }
 
         private void InitializeDatabase()
@@ -157,13 +179,119 @@ namespace SwiftLaunch
         }
 
         // Created / Deleted: need full re-index to discover subtree changes
-        private void OnFsEvent(object sender, FileSystemEventArgs e) => RestartDebounce();
+        private void OnFsEvent(object sender, FileSystemEventArgs e)
+        {
+            DebugLog($"OnFsEvent: {e.ChangeType} {e.FullPath}");
+
+            // Try a fast-path update for single-folder create/delete events so
+            // the UI can reflect the change instantly without a full reindex.
+            try
+            {
+                if (e.ChangeType == WatcherChangeTypes.Created)
+                {
+                    TryApplyCreate(e.FullPath);
+                    return;
+                }
+                if (e.ChangeType == WatcherChangeTypes.Deleted)
+                {
+                    TryApplyDelete(e.FullPath);
+                    return;
+                }
+            }
+            catch { /* non-fatal, fall back to full reindex */ }
+
+            RestartDebounce();
+        }
+
+        // Fast-path: insert a single created folder into the folders table
+        private void TryApplyCreate(string path)
+        {
+            try
+            {
+                if (!Directory.Exists(path)) return;
+
+                var name = Path.GetFileName(path);
+                if (string.IsNullOrEmpty(name)) return;
+
+                long ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                int depth = path.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries).Length - 1;
+
+                using var conn = OpenConnection();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "INSERT OR REPLACE INTO folders(name, path, depth, indexed_at) VALUES(@name,@path,@depth,@ts)";
+                cmd.Parameters.AddWithValue("@name", name);
+                cmd.Parameters.AddWithValue("@path", path);
+                cmd.Parameters.AddWithValue("@depth", depth);
+                cmd.Parameters.AddWithValue("@ts", ts);
+                var rows = cmd.ExecuteNonQuery();
+                DebugLog($"TryApplyCreate: inserted/updated {path} rows={rows}");
+
+                // Reload cache and notify UI
+                LoadHotCache();
+                OnIndexChanged();
+
+                // schedule full reindex in case more changes happen in the subtree
+                RestartDebounce();
+            }
+            catch (Exception ex) { DebugLog($"TryApplyCreate exception: {ex.Message}"); }
+        }
+
+        // Fast-path: remove deleted folder rows from folders and recent_opens
+        private void TryApplyDelete(string path)
+        {
+            try
+            {
+                using var conn = OpenConnection();
+                using var tx = conn.BeginTransaction();
+
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "DELETE FROM folders WHERE path = @p OR path LIKE @prefix ESCAPE '\\'";
+                    cmd.Parameters.AddWithValue("@p", path);
+                    cmd.Parameters.AddWithValue("@prefix", path.Replace("\\", "\\\\") + "\\%" );
+                    var del1 = cmd.ExecuteNonQuery();
+                    DebugLog($"TryApplyDelete: folders deleted for {path} rows={del1}");
+                }
+
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "DELETE FROM recent_opens WHERE path = @p OR path LIKE @prefix ESCAPE '\\'";
+                    cmd.Parameters.AddWithValue("@p", path);
+                    cmd.Parameters.AddWithValue("@prefix", path.Replace("\\", "\\\\") + "\\%" );
+                    var del2 = cmd.ExecuteNonQuery();
+                    DebugLog($"TryApplyDelete: recent_opens deleted for {path} rows={del2}");
+                }
+
+                tx.Commit();
+
+                LoadHotCache();
+                OnIndexChanged();
+                // schedule full reindex in case child entries were missed
+                RestartDebounce();
+            }
+            catch (Exception ex) { DebugLog($"TryApplyDelete exception: {ex.Message}"); }
+        }
 
         // Renamed: handle surgically — update DB rows in-place, reload cache immediately
         private void OnFsRenamed(object sender, RenamedEventArgs e)
         {
             if (_disposed) return;
-            Task.Run(() => ApplyRename(e.OldFullPath, e.FullPath));
+            DebugLog($"OnFsRenamed: {e.OldFullPath} -> {e.FullPath}");
+            Task.Run(() =>
+            {
+                try
+                {
+                    ApplyRename(e.OldFullPath, e.FullPath);
+                    DebugLog($"ApplyRename completed for {e.OldFullPath} -> {e.FullPath}");
+                }
+                catch (Exception ex)
+                {
+                    DebugLog($"ApplyRename task exception: {ex.Message}");
+                }
+            });
+            // Also schedule a debounced full reindex as a safety net in case
+            // the surgical update missed something (e.g. locked files, timing).
+            RestartDebounce();
         }
 
         private void ApplyRename(string oldPath, string newPath)
@@ -278,10 +406,12 @@ namespace SwiftLaunch
 
                 tx.Commit();
             }
-            catch { /* non-fatal */ }
+            catch (Exception ex) { DebugLog($"ApplyRename exception: {ex.Message}"); }
 
             // Reload hot cache — new name is now visible to Search() immediately
             LoadHotCache();
+            DebugLog($"ApplyRename: reloaded hot cache and notifying IndexChanged");
+            OnIndexChanged();
         }
 
         // Escape LIKE special characters in a path string
@@ -429,6 +559,8 @@ namespace SwiftLaunch
                 tx.Commit();
             }
             catch { }
+            // Notify UI consumers that the hot cache may have changed.
+            OnIndexChanged();
         }
 
         // ── BUG FIX: LoadHotCache now filters out entries whose paths no longer exist ──

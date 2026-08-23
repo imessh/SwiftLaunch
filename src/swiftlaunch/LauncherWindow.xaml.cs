@@ -43,14 +43,38 @@ namespace SwiftLaunch
             SearchBox.PreviewKeyDown += SearchBox_KeyDown;
             SuggestionList.SelectionChanged += SuggestionList_SelectionChanged;
 
+            // Subscribe to index updates so UI can refresh suggestions in real-time
+            _indexer.IndexChanged += OnIndexerChanged;
+
             CenterOnScreen();
             Deactivated += (s, e) => Hide();
         }
 
+        private void OnIndexerChanged(object? sender, EventArgs e)
+        {
+            DebugLogger.Log("LauncherWindow: OnIndexerChanged invoked");
+            Dispatcher.Invoke(() =>
+            {
+                var text = SearchBox.Text;
+                DebugLogger.Log($"LauncherWindow: current search box='{text}'");
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    ShowDefaultSuggestions();
+                    DebugLogger.Log("LauncherWindow: ShowDefaultSuggestions called");
+                }
+                else
+                {
+                    PerformSearch(text);
+                    DebugLogger.Log("LauncherWindow: PerformSearch called");
+                }
+            });
+        }
+    
         public void ShowAndActivate()
         {
             SearchBox.Text = string.Empty;
             UpdateModeIndicator(string.Empty);
+            ShowGuideBar();
             // ── FEATURE: show top 5 recent/frequent folders as default suggestions ──
             ShowDefaultSuggestions();
             CenterOnScreen();
@@ -59,7 +83,7 @@ namespace SwiftLaunch
             SearchBox.Focus();
             Keyboard.Focus(SearchBox);
         }
-
+    
         // ── FEATURE: default suggestions (recent/frequent folders) ──
         // Shown as soon as the launcher opens, and again whenever the box is
         // cleared back to empty, so the user always has quick picks without
@@ -91,7 +115,7 @@ namespace SwiftLaunch
             SuggestionList.SelectedIndex = 0;
             SetStatus("Recent & frequent folders — keep typing to search");
         }
-
+    
         private void CenterOnScreen()
         {
             var screen = WinForms.Screen.PrimaryScreen?.WorkingArea
@@ -99,7 +123,7 @@ namespace SwiftLaunch
             Left = (screen.Width - Width) / 2 + screen.Left;
             Top  = screen.Height * 0.28 + screen.Top;
         }
-
+    
         // ─────────────────────────────────────────────────────────────
         //  COMMAND PARSING  (fully replaced — no n. / c. prefixes)
         // ─────────────────────────────────────────────────────────────
@@ -125,8 +149,7 @@ namespace SwiftLaunch
         //  (case-insensitive). "vfolder", "dev", "childv" are NOT flags.
         // ─────────────────────────────────────────────────────────────
 
-        private static (string mode, string searchTerm, string childName, bool openInCode)
-            ParseInput(string raw)
+        private static (string mode, string searchTerm, string childName, bool openInCode) ParseInput(string raw)
         {
             // Split on whitespace, remove empty entries
             var tokens = raw.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -135,10 +158,8 @@ namespace SwiftLaunch
                 return ("folder", "", "", false);
 
             // Identify which token indices are the lone "v" flag
-            // A token is the "v" flag if and only if it equals "v" exactly (ignore case).
-            // We only strip ONE "v" token (the first found leading or trailing).
-            bool leadingV  = string.Equals(tokens[0],    "v", StringComparison.OrdinalIgnoreCase);
-            bool trailingV = string.Equals(tokens[^1],   "v", StringComparison.OrdinalIgnoreCase);
+            bool leadingV  = string.Equals(tokens[0],  "v", StringComparison.OrdinalIgnoreCase);
+            bool trailingV = string.Equals(tokens[^1], "v", StringComparison.OrdinalIgnoreCase);
 
             // Strip the standalone "v" flag token (leading takes priority)
             string[] payload;
@@ -146,19 +167,18 @@ namespace SwiftLaunch
 
             if (leadingV && tokens.Length >= 2)
             {
-                payload     = tokens[1..];
-                openInCode  = true;
+                payload = tokens[1..];
+                openInCode = true;
             }
             else if (trailingV && tokens.Length >= 2)
             {
-                payload     = tokens[..^1];
-                openInCode  = true;
+                payload = tokens[..^1];
+                openInCode = true;
             }
             else
             {
-                // No standalone "v" flag found (or "v" is the only token)
-                payload     = tokens;
-                openInCode  = false;
+                payload = tokens;
+                openInCode = false;
             }
 
             // After stripping the flag, decide mode by payload token count
@@ -167,7 +187,6 @@ namespace SwiftLaunch
                 case 0:
                     // Edge case: user typed exactly "v" alone — treat as folder search for "v"
                     return ("folder", "v", "", false);
-
                 case 1:
                     if (openInCode)
                         // "v foldername"  OR  "foldername v"  → VS Code open
@@ -175,17 +194,14 @@ namespace SwiftLaunch
                     else
                         // "foldername"  → File Explorer open
                         return ("folder", payload[0], "", false);
-
                 default:
                     // 2+ tokens in payload → CREATE mode
-                    // payload[0] = child folder name
-                    // payload[1..] joined = parent search term
-                    string childName   = payload[0];
+                    string childName = payload[0];
                     string parentQuery = string.Join(" ", payload[1..]);
                     return ("create", parentQuery, childName, openInCode);
             }
         }
-
+            
         // ─────────────────────────────────────────────────────────────
         //  TEXT CHANGED / DEBOUNCE
         // ─────────────────────────────────────────────────────────────
@@ -198,18 +214,20 @@ namespace SwiftLaunch
             if (string.IsNullOrWhiteSpace(text))
             {
                 // ── FEATURE: fall back to default suggestions, not an empty box ──
+                ShowGuideBar();
                 ShowDefaultSuggestions();
                 return;
             }
+            HideGuideBar();
             _debounceTimer.Start();
         }
-
+    
         private void DebounceTimer_Tick(object? sender, EventArgs e)
         {
             _debounceTimer.Stop();
             PerformSearch(SearchBox.Text);
         }
-
+    
         // ─────────────────────────────────────────────────────────────
         //  MODE INDICATOR
         // ─────────────────────────────────────────────────────────────
@@ -245,7 +263,7 @@ namespace SwiftLaunch
                     break;
             }
         }
-
+            
         // ─────────────────────────────────────────────────────────────
         //  SEARCH
         // ─────────────────────────────────────────────────────────────
@@ -273,10 +291,6 @@ namespace SwiftLaunch
                     SetStatus($"Creating \"{childName}\" — type a parent folder name");
                     return;
                 }
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(searchTerm)) { HideSuggestions(); return; }
             }
 
             SetStatus("Searching...");
@@ -338,7 +352,7 @@ namespace SwiftLaunch
             }
             catch (OperationCanceledException) { }
         }
-
+    
         // ─────────────────────────────────────────────────────────────
         //  KEYBOARD
         // ─────────────────────────────────────────────────────────────
@@ -378,7 +392,7 @@ namespace SwiftLaunch
                     break;
             }
         }
-
+            
         private void SuggestionList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
             if (SuggestionList.SelectedItem is SuggestionItem item)
@@ -387,11 +401,20 @@ namespace SwiftLaunch
                     : item.FullPath, important: true);
         }
 
+        private void SuggestionList_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                ExecuteCurrentSelection();
+                e.Handled = true;
+            }
+        }
+    
         private void SuggestionList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             ExecuteCurrentSelection();
         }
-
+    
         // ─────────────────────────────────────────────────────────────
         //  EXECUTE
         // ─────────────────────────────────────────────────────────────
@@ -419,23 +442,19 @@ namespace SwiftLaunch
             try
             {
                 if (item.IsVSCode)
-                {
                     Process.Start(new ProcessStartInfo
                     {
                         FileName        = "code",
                         Arguments       = $"\"{item.FullPath}\"",
                         UseShellExecute = true
                     });
-                }
                 else
-                {
                     Process.Start(new ProcessStartInfo
                     {
                         FileName        = "explorer.exe",
                         Arguments       = $"\"{item.FullPath}\"",
                         UseShellExecute = true
                     });
-                }
             }
             catch (Exception ex)
             {
@@ -443,7 +462,7 @@ namespace SwiftLaunch
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
-
+            
         // ─────────────────────────────────────────────────────────────
         //  FOLDER CREATION
         // ─────────────────────────────────────────────────────────────
@@ -480,7 +499,7 @@ namespace SwiftLaunch
                 SetStatus($"Error creating folder: {ex.Message}", important: true, kind: StatusKind.Error);
             }
         }
-
+            
         // ─────────────────────────────────────────────────────────────
         //  HELPERS
         // ─────────────────────────────────────────────────────────────
@@ -490,7 +509,7 @@ namespace SwiftLaunch
             Divider.Visibility        = Visibility.Visible;
             SuggestionList.Visibility = Visibility.Visible;
         }
-
+    
         private void HideSuggestions()
         {
             Divider.Visibility         = Visibility.Collapsed;
@@ -498,6 +517,10 @@ namespace SwiftLaunch
             SuggestionList.ItemsSource = null;
         }
 
+        private void ShowGuideBar() => GuideBar.Visibility = Visibility.Visible;
+
+        private void HideGuideBar() => GuideBar.Visibility = Visibility.Collapsed;
+    
         private void SetStatus(string text, bool important = false, StatusKind kind = StatusKind.Info)
         {
             StatusText.Text = text;
@@ -505,12 +528,12 @@ namespace SwiftLaunch
             {
                 StatusKind.Success => System.Windows.Media.Brushes.LightGreen,
                 StatusKind.Error   => System.Windows.Media.Brushes.IndianRed,
-                _                  => important
-                                         ? (Brush)FindResource("TextSecondaryBrush")
-                                         : (Brush)FindResource("TextMutedBrush")
+                _ => important
+                     ? (Brush)FindResource("TextSecondaryBrush")
+                     : (Brush)FindResource("TextMutedBrush")
             };
         }
-
+    
         private void ResetStatus() =>
             SetStatus("Type folder name · folder v = VS Code · child parent = create");
 
@@ -521,45 +544,40 @@ namespace SwiftLaunch
                 return "~" + path[home.Length..];
             return path.Length > 60 ? "..." + path[^57..] : path;
         }
-
+    
         protected override void OnClosing(CancelEventArgs e)
         {
             e.Cancel = true;
             Hide();
         }
+    
+        // ─────────────────────────────────────────────────────────────────
+        //  DATA MODEL
+        // ─────────────────────────────────────────────────────────────────
+
+        private void UpdateNowButton_Click(object sender, System.Windows.RoutedEventArgs e) { }
+        private void UpdateLaterButton_Click(object sender, System.Windows.RoutedEventArgs e) { }
+
+        public class SuggestionItem
+        {
+            public string   FullPath         { get; set; } = "";
+            public string   DisplayName      { get; set; } = "";
+            public string   SubText          { get; set; } = "";
+            public string   Icon             { get; set; } = "📁";
+            public string   BadgeText        { get; set; } = "Folder";
+            public WpfBrush BadgeBrush       { get; set; } = new(WpfColor.FromRgb(63, 63, 90));
+
+            public bool IsVSCode { get; set; }
+
+            public bool   IsCreate         { get; set; }
+            public string NewFolderName    { get; set; } = "";
+            public bool   CreateOpenInCode { get; set; }
+        }
+
+        private void UpdateNowButton_Click_2(object sender, System.Windows.RoutedEventArgs e) { }
+        private void UpdateLaterButton_Click_2(object sender, System.Windows.RoutedEventArgs e) { }
+
+        // STATUS KIND
+        public enum StatusKind { Info, Success, Error }
     }
-
-    // ─────────────────────────────────────────────────────────────────
-    //  DATA MODEL
-    // ─────────────────────────────────────────────────────────────────
-
-    public class SuggestionItem
-    {
-        public string   FullPath         { get; set; } = "";
-        public string   DisplayName      { get; set; } = "";
-        public string   SubText          { get; set; } = "";
-        public string   Icon             { get; set; } = "📁";
-        public string   BadgeText        { get; set; } = "Folder";
-        public WpfBrush BadgeBrush       { get; set; } = new(WpfColor.FromRgb(63, 63, 90));
-
-        public bool IsVSCode { get; set; }
-
-        public bool   IsCreate         { get; set; }
-        public string NewFolderName    { get; set; } = "";
-        public bool   CreateOpenInCode { get; set; }
-    }
-
-    // ─────────────────────────────────────────────────────────────────
-    //  STATUS KIND
-    // ─────────────────────────────────────────────────────────────────
-
-    public enum StatusKind { Info, Success, Error }
-
-    private void UpdateNowButton_Click(object sender, System.Windows.RoutedEventArgs e) { }
-
-    private void UpdateLaterButton_Click(object sender, System.Windows.RoutedEventArgs e) { }
-
-    private void UpdateNowButton_Click(object sender, System.Windows.RoutedEventArgs e) { }
-
-    private void UpdateLaterButton_Click(object sender, System.Windows.RoutedEventArgs e) { }
 }

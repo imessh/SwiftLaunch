@@ -281,6 +281,7 @@
                          Margin="0,4,0,4"
                          MaxHeight="280"
                          Visibility="Collapsed"
+                         PreviewKeyDown="SuggestionList_PreviewKeyDown"
                          MouseDoubleClick="SuggestionList_MouseDoubleClick">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -327,6 +328,20 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+
+                <Border x:Name="GuideBar"
+                        Background="#111124"
+                        BorderBrush="#272744"
+                        BorderThickness="0,1,0,1"
+                        Padding="14,7"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="GuideText"
+                               Text="Type to search · add v for VS Code · use two names to create one folder inside another"
+                               FontSize="10.5"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontFamily="Segoe UI Variable, Segoe UI, sans-serif"
+                               TextTrimming="CharacterEllipsis"/>
+                </Border>
 
                 <!-- Status bar (unchanged) -->
                 <Border x:Name="StatusBar"
